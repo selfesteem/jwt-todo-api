@@ -77,6 +77,7 @@
   - 추가: 중복 이메일 409, 교차 사용자 접근 차단(A가 B의 TODO 조회·수정·삭제 404 + B 데이터 무변경), 필드 주입 400, 빈 body 400, 짧은 비밀번호 400
 - 테스트는 매 케이스 전 DB를 초기화(`DELETE FROM todos/users`)하므로 실행 순서에 의존하지 않습니다.
 - 운영 서버(curl) 검증: README 절차대로 dev DB 자동 생성 + 전 API 흐름 확인 완료.
+- 클린룸 재현 검증: `data/`, `.env`, `dist/` 삭제 상태에서 README 명령만으로(`cp .env.example .env` → `npm run start:dev`) 회원가입 201 / 로그인 토큰 발급 / 내 정보 200 / TODO 생성 201 확인 및 `data/dev.sqlite` 자동 생성 확인.
 
 ## 5. 참고: 버전 확정 내역
 

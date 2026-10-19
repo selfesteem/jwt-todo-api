@@ -23,3 +23,6 @@ npm-debug.log*
 
 # superpowers workspace (개발용 스크래치)
 .superpowers/
+
+# 제출 ZIP 산출물
+nestjs.zip
