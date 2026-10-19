@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { bootstrapTestApp, clearDatabase, getRepo, TestContext } from './support/test-app';
+import { bootstrapTestApp, clearDatabase, getRepo, signupAndLogin, TestContext } from './support/test-app';
 import { User } from '../src/users/entities/user.entity';
 
 describe('TODO API (e2e)', () => {
@@ -178,6 +178,123 @@ describe('TODO API (e2e)', () => {
       const res = await request(ctx.app.getHttpServer()).get('/users/me');
 
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('TODO CRUD /todos', () => {
+    let token: string;
+    let server: ReturnType<TestContext['app']['getHttpServer']>;
+
+    beforeEach(async () => {
+      server = ctx.app.getHttpServer();
+      token = await signupAndLogin(ctx.app, 'todo-user@example.com');
+    });
+
+    const withAuth = (): { Authorization: string } => ({ Authorization: `Bearer ${token}` });
+
+    it('시나리오2: 생성 → 목록 → 단건조회 → 수정 → 삭제 → 재조회 404', async () => {
+      // 생성
+      const createRes = await request(server)
+        .post('/todos')
+        .set(withAuth())
+        .send({ title: 'JWT 인증 구현', description: '인증 및 인가 테스트 작성', completed: false });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.id).toBeDefined();
+      expect(createRes.body.title).toBe('JWT 인증 구현');
+      expect(createRes.body.description).toBe('인증 및 인가 테스트 작성');
+      expect(createRes.body.completed).toBe(false);
+      const todoId = createRes.body.id;
+
+      // 목록
+      const listRes = await request(server).get('/todos').set(withAuth());
+      expect(listRes.status).toBe(200);
+      expect(Array.isArray(listRes.body)).toBe(true);
+      expect(listRes.body.some((t: { id: number }) => t.id === todoId)).toBe(true);
+
+      // 단건 조회
+      const oneRes = await request(server).get(`/todos/${todoId}`).set(withAuth());
+      expect(oneRes.status).toBe(200);
+      expect(oneRes.body.id).toBe(todoId);
+      expect(oneRes.body.title).toBe('JWT 인증 구현');
+
+      // 수정 (제목 + 완료 상태)
+      const putRes = await request(server)
+        .put(`/todos/${todoId}`)
+        .set(withAuth())
+        .send({ title: 'JWT 인증 구현 완료', completed: true });
+      expect(putRes.status).toBe(200);
+      expect(putRes.body.title).toBe('JWT 인증 구현 완료');
+      expect(putRes.body.completed).toBe(true);
+
+      // 삭제
+      const delRes = await request(server).delete(`/todos/${todoId}`).set(withAuth());
+      expect(delRes.status).toBe(204);
+
+      // 재조회 404
+      const afterRes = await request(server).get(`/todos/${todoId}`).set(withAuth());
+      expect(afterRes.status).toBe(404);
+    });
+
+    it('description/completed 생략 시 기본값 적용 (description=null, completed=false)', async () => {
+      const res = await request(server).post('/todos').set(withAuth()).send({ title: '최소 필드' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.completed).toBe(false);
+      expect(res.body.description).toBeNull();
+    });
+
+    it('title 누락/빈값 시 400', async () => {
+      const noTitle = await request(server).post('/todos').set(withAuth()).send({});
+      expect(noTitle.status).toBe(400);
+
+      const emptyTitle = await request(server)
+        .post('/todos')
+        .set(withAuth())
+        .send({ title: '' });
+      expect(emptyTitle.status).toBe(400);
+    });
+
+    it('DTO에 없는 필드(userId 등) 주입 시 400 — 소유자 위조 방지', async () => {
+      const res = await request(server)
+        .post('/todos')
+        .set(withAuth())
+        .send({ title: 'x', userId: 999, createdAt: '2000-01-01' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('비숫자 :id 요청은 404 또는 400 (500 아님)', async () => {
+      const getRes = await request(server).get('/todos/not-a-number').set(withAuth());
+      expect([400, 404]).toContain(getRes.status);
+
+      const putRes = await request(server).put('/todos/not-a-number').set(withAuth()).send({});
+      expect([400, 404]).toContain(putRes.status);
+    });
+
+    it('수정은 전달된 필드만 반영한다 (부분 수정)', async () => {
+      const created = await request(server)
+        .post('/todos')
+        .set(withAuth())
+        .send({ title: '원본', description: '원본설명' });
+
+      const res = await request(server)
+        .put(`/todos/${created.body.id}`)
+        .set(withAuth())
+        .send({ completed: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.title).toBe('원본');
+      expect(res.body.description).toBe('원본설명');
+      expect(res.body.completed).toBe(true);
+    });
+
+    it('토큰 없이 POST/GET /todos 는 401', async () => {
+      const postRes = await request(server).post('/todos').send({ title: 'x' });
+      expect(postRes.status).toBe(401);
+
+      const listRes = await request(server).get('/todos');
+      expect(listRes.status).toBe(401);
     });
   });
 });
