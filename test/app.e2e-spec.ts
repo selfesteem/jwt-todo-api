@@ -92,4 +92,92 @@ describe('TODO API (e2e)', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('로그인 POST /users/login', () => {
+    const credentials = {
+      email: 'login-user@example.com',
+      password: 'StrongPassword123!',
+      name: '로그인유저',
+    };
+
+    beforeEach(async () => {
+      await request(ctx.app.getHttpServer()).post('/users/signup').send(credentials).expect(201);
+    });
+
+    it('올바른 자격증명이면 200과 access_token(JWT)을 반환한다', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/login')
+        .send({ email: credentials.email, password: credentials.password });
+
+      expect(res.status).toBe(200);
+      expect(typeof res.body.access_token).toBe('string');
+      // JWT 형식: header.payload.signature
+      expect(res.body.access_token.split('.')).toHaveLength(3);
+    });
+
+    it('잘못된 비밀번호면 401', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/login')
+        .send({ email: credentials.email, password: 'WrongPassword123!' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.access_token).toBeUndefined();
+    });
+
+    it('존재하지 않는 이메일이면 401', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/login')
+        .send({ email: 'ghost@example.com', password: 'StrongPassword123!' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('요청 형식 오류(이메일 아님)는 400', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/login')
+        .send({ email: 'not-an-email', password: 'StrongPassword123!' });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('내 정보 GET /users/me', () => {
+    it('시나리오1: 회원가입 → 로그인 → 토큰으로 내 정보 조회', async () => {
+      const server = ctx.app.getHttpServer();
+      const email = 'scenario1@example.com';
+
+      // 1) 회원가입
+      await request(server)
+        .post('/users/signup')
+        .send({ email, password: 'StrongPassword123!', name: '시나리오유저' })
+        .expect(201);
+
+      // 2) 로그인 → access_token 발급
+      const loginRes = await request(server)
+        .post('/users/login')
+        .send({ email, password: 'StrongPassword123!' });
+      expect(loginRes.status).toBe(200);
+      const token: string = loginRes.body.access_token;
+      expect(token).toBeDefined();
+
+      // 3) 토큰으로 내 정보 조회
+      const meRes = await request(server)
+        .get('/users/me')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.email).toBe(email);
+      expect(meRes.body.name).toBe('시나리오유저');
+      expect(meRes.body.id).toBeDefined();
+      expect(meRes.body).not.toHaveProperty('password');
+      expect(meRes.body).not.toHaveProperty('passwordHash');
+      expect(JSON.stringify(meRes.body)).not.toMatch(/\$2[aby]\$/);
+    });
+
+    it('토큰 없이 호출하면 401', async () => {
+      const res = await request(ctx.app.getHttpServer()).get('/users/me');
+
+      expect(res.status).toBe(401);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -8,8 +8,6 @@ import { SafeUser } from './users.types';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
@@ -39,6 +37,20 @@ export class UsersService {
       }
       throw error;
     }
+  }
+
+  /** 로그인 검증용: 비밀번호 해시까지 포함해 조회한다. API 응답에 사용 금지. */
+  async findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email })
+      .getOne();
+  }
+
+  /** ID로 안전한 사용자 정보를 조회한다. password 컬럼은 select:false 로 제외된다. */
+  async findById(id: number): Promise<SafeUser | null> {
+    return this.usersRepository.findOneBy({ id });
   }
 
   private isUniqueViolation(error: unknown): boolean {
