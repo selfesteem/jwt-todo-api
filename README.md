@@ -141,6 +141,9 @@ curl -X POST http://localhost:3000/users/signup \
 }
 ```
 
+> - **이메일 정규화**: 앞뒤 공백 제거 후 소문자로 변환해 저장합니다 (`Foo@Example.COM` → `foo@example.com`). 로그인에도 동일하게 적용됩니다.
+> - **비밀번호 정책**: 최소 8자 이상, 최대 72바이트 이하 (bcrypt의 72바이트 입력 제한 기준. 한글 등 멀티바이트 문자는 바이트 수로 계산).
+
 ### 로그인 — POST /users/login
 
 ```bash

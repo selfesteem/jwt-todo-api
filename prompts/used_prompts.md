@@ -37,7 +37,7 @@
 | DB 자동 생성 확인 | 서버 기동 후 better-sqlite3로 `sqlite_master` 조회 | `users`, `todos` 테이블 생성, `email` UNIQUE 제약, `todos.userId` FK `ON DELETE CASCADE` 확인 |
 | env 검증 확인 | `JWT_SECRET='' node dist/main.js` | 시작 단계에서 명확한 오류 메시지와 함께 실패 확인 |
 | 단위 테스트 | `npm test` | 16/16 통과 (env 5, auth 3, todos 8건) |
-| 통합 테스트 | `npm run test:e2e` | 34/34 통과 (인메모리 SQLite, 매 테스트 DB 초기화) |
+| 통합 테스트 | `npm run test:e2e` | 40/40 통과 (인메모리 SQLite, 매 테스트 DB 초기화) |
 | 운영 서버 동작 확인 | `node dist/main.js` + curl 스크립트 | 회원가입→로그인→/users/me→TODO CRUD→삭제 404 전 흐름 200/201/204 확인 (README 검증 절차) |
 
 ## 3. AI 결과에서 발견한 문제 및 수정 내용
@@ -67,12 +67,18 @@
 8. **Node 하위 호환 범위 과대 표기 (코드 리뷰 지적)**
    - 현상: `engines.node >=20` 및 README "Node 20 이상" — NestJS 12 패키지가 ESM(`type: module`) 전용 배포인데 빌드 산출물은 CommonJS여서 `require(esm)` 미지원 Node(20.0~20.18, 21.x, 22.0~22.11)에서는 `ERR_REQUIRE_ESM`으로 부팅 실패
    - 조치: `engines.node`를 `>=20.19.0`으로 수정, README 사전 요구사항에 근거와 함께 명시. 수정 후 빌드/테스트 전체 재검증(build 0, 단위 16/16, 통합 34/34)
+9. **이메일 대소문자 정규화 미적용 (코드 리뷰 Minor, 사용자 요청으로 반영)**
+   - 현상: `Foo@x.com`과 `foo@x.com`이 별개 계정으로 등록 가능 — 중복 가입 방지 요구사항의 취지 미달
+   - 조치: 회원가입·로그인 DTO의 이메일에 trim + 소문자 정규화 적용. 신규 e2e 3건(소문자 저장·대소문자 중복 409·대문자 로그인 성공) 추가
+10. **비밀번호 최대 길이 제한 없음 (코드 리뷰 Minor, 사용자 요청으로 반영)**
+    - 현상: bcrypt가 72바이트 초과 입력을 자동 잘림 — 앞 72바이트가 같은 서로 다른 비밀번호가 동일 인증됨
+    - 조치: UTF-8 바이트 기준 커스텀 검증자(`MaxByteLength`) 추가, 회원가입 DTO에 72바이트 상한 적용. 신규 e2e 3건(72자 허용·73자 400·한글 24/25자 바이트 경계) 추가
 
 ## 4. 최종 테스트 결과
 
 - `npm run build`: 성공 (오류 0)
 - `npm test` (단위): **16/16 통과** — env 검증 5건, auth.service 3건(토큰 발급/자격증명 실패), todos.service 8건(소유권 스코프)
-- `npm run test:e2e` (통합): **34/34 통과**
+- `npm run test:e2e` (통합): **40/40 통과**
   - 시나리오 1 (회원가입→로그인→내 정보): 200 + 사용자 정보 + password/hash 미포함 확인
   - 시나리오 2 (TODO CRUD): 생성→목록→단건→수정→삭제(204)→재조회 404 전 흐름 + 기본값/검증 케이스
   - 시나리오 3 (인증 실패): 토큰 없음/형식 오류/Bearer 스킴 오류/위조 서명/만료(1초 토큰 실제 대기) 모두 401

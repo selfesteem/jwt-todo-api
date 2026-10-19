@@ -92,6 +92,64 @@ describe('TODO API (e2e)', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('이메일은 소문자로 정규화되어 저장된다 (Foo@Example.COM → foo@example.com)', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/signup')
+        .send({ ...validBody, email: 'Foo@Example.COM' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.email).toBe('foo@example.com');
+    });
+
+    it('대소문자만 다른 이메일은 중복으로 409', async () => {
+      await request(ctx.app.getHttpServer())
+        .post('/users/signup')
+        .send({ ...validBody, email: 'Foo@Example.COM' })
+        .expect(201);
+
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/signup')
+        .send({ ...validBody, email: 'foo@example.com' });
+
+      expect(res.status).toBe(409);
+    });
+
+    it('비밀번호 72자(72바이트, ASCII)는 허용된다', async () => {
+      const res = await request(ctx.app.getHttpServer()).post('/users/signup').send({
+        email: 'pw72@example.com',
+        password: 'a'.repeat(72),
+        name: '경계값',
+      });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('비밀번호 73자(73바이트, ASCII)는 400 — bcrypt 72바이트 잘림 방지', async () => {
+      const res = await request(ctx.app.getHttpServer()).post('/users/signup').send({
+        email: 'pw73@example.com',
+        password: 'a'.repeat(73),
+        name: '경계값',
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('비밀번호 길이는 바이트 기준으로 검증한다 (가×24=72바이트 허용, 가×25=75바이트 400)', async () => {
+      const ok = await request(ctx.app.getHttpServer()).post('/users/signup').send({
+        email: 'mb-ok@example.com',
+        password: '가'.repeat(24),
+        name: '멀티바이트',
+      });
+      expect(ok.status).toBe(201);
+
+      const reject = await request(ctx.app.getHttpServer()).post('/users/signup').send({
+        email: 'mb-reject@example.com',
+        password: '가'.repeat(25),
+        name: '멀티바이트',
+      });
+      expect(reject.status).toBe(400);
+    });
   });
 
   describe('로그인 POST /users/login', () => {
@@ -139,6 +197,15 @@ describe('TODO API (e2e)', () => {
         .send({ email: 'not-an-email', password: 'StrongPassword123!' });
 
       expect(res.status).toBe(400);
+    });
+
+    it('대문자 이메일로 로그인해도 정규화되어 성공한다', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .post('/users/login')
+        .send({ email: 'LOGIN-USER@EXAMPLE.COM', password: credentials.password });
+
+      expect(res.status).toBe(200);
+      expect(typeof res.body.access_token).toBe('string');
     });
   });
 
