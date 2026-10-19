@@ -64,6 +64,9 @@
 7. **jsonwebtoken 타입 불일치 (TS2322)**
    - 현상: `expiresIn: string`이 `number | StringValue`에 할당 불가
    - 조치: `JwtSignOptions['expiresIn']`으로 캐스팅(잘못된 값은 서명 시점에 jsonwebtoken이 검증)
+8. **Node 하위 호환 범위 과대 표기 (코드 리뷰 지적)**
+   - 현상: `engines.node >=20` 및 README "Node 20 이상" — NestJS 12 패키지가 ESM(`type: module`) 전용 배포인데 빌드 산출물은 CommonJS여서 `require(esm)` 미지원 Node(20.0~20.18, 21.x, 22.0~22.11)에서는 `ERR_REQUIRE_ESM`으로 부팅 실패
+   - 조치: `engines.node`를 `>=20.19.0`으로 수정, README 사전 요구사항에 근거와 함께 명시. 수정 후 빌드/테스트 전체 재검증(build 0, 단위 16/16, 통합 34/34)
 
 ## 4. 최종 테스트 결과
 
