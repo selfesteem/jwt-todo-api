@@ -1,0 +1,25 @@
+# dependencies / build
+node_modules/
+dist/
+
+# environment
+.env
+
+# database files
+data/
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+
+# test / coverage
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+
+# superpowers workspace (개발용 스크래치)
+.superpowers/
